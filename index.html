@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quét mã QR với QrScanner.js</title>
+    <script type="module">
+        import QrScanner from "https://cdn.jsdelivr.net/npm/qr-scanner/qr-scanner.min.js";
+
+        let scannerInstance;
+        let userAppData = null; // Biến toàn cục để lưu dữ liệu người dùng và ứng dụng
+
+        window.onload = function () {
+            // --- THAM CHIẾU CÁC PHẦN GIAO DIỆN ---
+            // Khối nút trên đầu trang
+            const getButton = document.getElementById("get-button");
+            const toggleButton = document.getElementById("toggle-button");
+            const maintenanceButton = document.getElementById("maintenance-button");
+
+            // Khối nhập thông tin (chứa bảng thông tin người dùng không chỉnh sửa)
+            const inputContainer = document.querySelector(".input-container");
+            // Các phần tử hiển thị thông tin người dùng
+            const displayedUserId = document.getElementById("displayed-user-id");
+            const displayedUsername = document.getElementById("displayed-username");
+            const displayedPhanXuong = document.getElementById("displayed-phanxuong");
+
+            // Các nút Quét mã
+            const startButton = document.getElementById("start-button");
+            const stopButton = document.getElementById("stop-button");
+            const videoContainer = document.getElementById("videoContainer");
+            const videoElement = document.getElementById("videoElement");
+            const logoutButton = document.getElementById("logout-button");
+
+
+            // Các nút hành động công việc
+            const initJobButton = document.getElementById("init-job-button");
+            const endJobButton = document.getElementById("end-job-button");
+
+            // Các ô hiển thị kết quả & thông tin sự cố
+            const assetCodeEl = document.getElementById("asset-code");
+            const serialNumberEl = document.getElementById("serial-number");
+            const machineTypeEl = document.getElementById("machine-type");
+            const brandEl = document.getElementById("brand");
+            const modelEl = document.getElementById("model");
+            const startTimeEl = document.getElementById("start-time");
+            const timeCodeEl = document.getElementById("time-code");
+            const areaSelect = document.getElementById("area");
+            const locationSelect = document.getElementById("location");
+            const issueSelect = document.getElementById("issue");
+            const replacementPartInput = document.getElementById("replacement-part");
+            const noteInput = document.getElementById("note");
+
+
+            // --- LẤY DỮ LIỆU NGƯỜI DÙNG & KẾT QUẢ CŨ (LocalStorage) ---
+
+            // Lấy dữ liệu người dùng từ localStorage
+            const userAppDataString = localStorage.getItem("userAppDataOfDKien");
+            if (userAppDataString) {
+                try {
+                    userAppData = JSON.parse(userAppDataString);
+                    // Hiển thị thông tin người dùng lên giao diện từ dữ liệu đã lưu
+                    displayedUserId.textContent = (userAppData.user && userAppData.user.username) ? userAppData.user.username : "";
+                    displayedUsername.textContent = (userAppData.user && userAppData.user.name) ? userAppData.user.name : "";
+                    displayedPhanXuong.textContent = (userAppData.user && userAppData.user.local) ? userAppData.user.local : "";
+
+                     // Cập nhật dropdowns từ dữ liệu app nếu có trong userAppData
+                     if (userAppData.app) {
+                          populateDropdowns(userAppData.app);
+                     }
+
+                    // Khôi phục các giá trị đã chọn cho dropdowns sự cố nếu có trong localStorage riêng lẻ
+                    areaSelect.value = localStorage.getItem("area") || "";
+                    locationSelect.value = localStorage.getItem("location") || "";
+                    issueSelect.value = localStorage.getItem("issue") || "";
+
+
+                } catch (e) {
+                    console.error("Lỗi phân tích dữ liệu người dùng từ localStorage:", e);
+                    localStorage.removeItem("userAppDataOfDKien"); // Xóa dữ liệu lỗi
+                    userAppData = null; // Đặt lại biến
+                }
+            }
+
+
+            // Hiển thị/ẩn khối nhập dựa vào localStorage (key: "inputHidden")
+            if (localStorage.getItem("inputHidden") === "true") {
+                inputContainer.style.display = "none";
+            } else {
+                inputContainer.style.display = "flex"; // Sử dụng flex
+            }
+
+            // Lấy dữ liệu kết quả đã lưu (nếu có)
+            if (localStorage.getItem("assetCode")) {
+                assetCodeEl.textContent = localStorage.getItem("assetCode");
+            }
+            if (localStorage.getItem("serialNumber")) {
+                serialNumberEl.textContent = localStorage.getItem("serialNumber");
+            }
+            if (localStorage.getItem("machineType")) {
+                machineTypeEl.textContent = localStorage.getItem("machineType");
+            }
+            if (localStorage.getItem("brand")) {
+                brandEl.textContent = localStorage.getItem("brand");
+            }
+            if (localStorage.getItem("model")) {
+                modelEl.textContent = localStorage.getItem("model");
+            }
+            if (localStorage.getItem("timeCode")) {
+                timeCodeEl.textContent = localStorage.getItem("timeCode");
+            }
+            if (localStorage.getItem("startTime")) {
+                startTimeEl.textContent = localStorage.getItem("startTime");
+            }
+            // Khôi phục giá trị cho các input/select sự cố
+            replacementPartInput.value = localStorage.getItem("replacementPart") || "";
+            noteInput.value = localStorage.getItem("note") || "";
+
+
+            // --- HÀM CẬP NHẬT DROPDOWNS TỪ DỮ LIỆU APP ---
+            function populateDropdowns(appData) {
+                 // Cập nhật dropdown khu vực
+                areaSelect.innerHTML = '<option value="">Chọn khu vực</option>'; // Reset và thêm option mặc định
+                // Sử dụng key chính xác "Khu Vực"
+                if (appData && appData["Data chung tất cả chức năng"] && appData["Data chung tất cả chức năng"]["Khu Vực"]) {
+                    appData["Data chung tất cả chức năng"]["Khu Vực"].split(",").forEach(item => {
+                        const option = document.createElement("option");
+                        option.value = item.trim();
+                        option.textContent = item.trim();
+                        areaSelect.appendChild(option);
+                    });
+                }
+
+                // Cập nhật dropdown vị trí
+                locationSelect.innerHTML = '<option value="">Chọn vị trí</option>'; // Reset và thêm option mặc định
+                 // Sử dụng key chính xác "Vị Trí"
+                 if (appData && appData["Data chung tất cả chức năng"] && appData["Data chung tất cả chức năng"]["Vị Trí"]) {
+                    appData["Data chung tất cả chức năng"]["Vị Trí"].split(",").forEach(item => {
+                        const option = document.createElement("option");
+                        option.value = item.trim();
+                        option.textContent = item.trim();
+                        locationSelect.appendChild(option);
+                    });
+                 }
+
+                // Cập nhật dropdown sự cố từ truongTrinhBaoCaoSuaChua
+                issueSelect.innerHTML = '<option value="">Chọn sự cố</option>'; // Reset và thêm option mặc định
+                 // Sử dụng key chính xác "Sự Cố"
+                 if (appData && appData["truongTrinhBaoCaoSuaChua"] && appData["truongTrinhBaoCaoSuaChua"]["Sự Cố"]) {
+                    appData["truongTrinhBaoCaoSuaChua"]["Sự Cố"].split(",").forEach(item => {
+                        const option = document.createElement("option");
+                        option.value = item.trim();
+                        option.textContent = item.trim();
+                        issueSelect.appendChild(option);
+                    });
+                }
+                // Lưu ý: Logic cập nhật phanxuong-select từ dữ liệu Get trong code gốc
+                // không được triển khai lại vì phanXuongSelect giờ là text display.
+            }
+
+
+            // --- XỬ LÝ SỰ KIỆN CHO 3 NÚT TRÊN ĐẦU ---
+            // Nút "Get Data": Khi nhấn sẽ gọi API cập nhật đường dẫn và cập nhật các dropdown:
+            getButton.addEventListener("click", () => {
+                // Kiểm tra dữ liệu người dùng
+                if (!userAppData || !userAppData.user || !userAppData.user.username || !userAppData.user.token) {
+                    alert("Đã xảy ra sự cố! Vui lòng đăng nhập lại.");
+                    window.location.href = "login.html"; // Chuyển hướng về trang đăng nhập
+                    return;
+                }
+
+                const idUserVal = userAppData.user.username;
+                const tokenVal = userAppData.user.token;
+
+                // Lấy API base URL từ localStorage (từ biến userAppDataOfDKien)
+                const jsonData = localStorage.getItem("userAppDataOfDKien");
+                const apiBaseUrl = jsonData ? JSON.parse(jsonData).app.truongTrinhCapNhatThanhPhanApp.API : "";
+
+                if (!apiBaseUrl) {
+                    alert("Không tìm thấy API Base URL.");
+                    return;
+                }
+
+                // Tạo chuỗi dữ liệu dạng URL-encoded cho POST body
+                const requestBody =
+                    `func=capnhatduongdan` +
+                    `&idUser=${encodeURIComponent(idUserVal)}` +
+                    `&token=${encodeURIComponent(tokenVal)}`;
+
+                console.log("Request body:", requestBody);
+
+                // Gửi POST request với định dạng x-www-form-urlencoded
+                fetch(apiBaseUrl, {
+                    method: "POST",
+                    headers: {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    body: requestBody
+                })
+                    .then(response => {
+                    if (!response.ok) throw new Error("Network response was not ok");
+                    return response.json();
+                    })
+                    .then(data => {
+                    if (data.status === "success") {
+                        alert(data.notification);
+
+                        // Cập nhật phần 'app' của userAppData hiện có
+                        if (userAppData) {
+                        userAppData.app = data.app;
+                        localStorage.setItem("userAppDataOfDKien", JSON.stringify(userAppData));
+                        populateDropdowns(userAppData.app); // Cập nhật dropdowns từ dữ liệu app mới
+
+                        // Khôi phục lại giá trị đã chọn từ localStorage nếu có
+                        areaSelect.value = localStorage.getItem("area") || "";
+                        locationSelect.value = localStorage.getItem("location") || "";
+                        issueSelect.value = localStorage.getItem("issue") || "";
+                        } else {
+                        alert("Không thể cập nhật dữ liệu ứng dụng vì thông tin người dùng chưa được tải.");
+                        }
+                    } else {
+                        alert("Có lỗi khi cập nhật dữ liệu. " + (data.notification || ""));
+                    }
+                    })
+                    .catch(error => {
+                    console.error("Lỗi khi gọi API POST:", error);
+                    alert("Không thể kết nối đến API POST.");
+                    });
+                });
+
+            // Nút "Ẩn/Hiện": Ẩn hoặc hiện khối nhập thông tin & lưu trạng thái vào localStorage
+            toggleButton.addEventListener("click", () => {
+                if (inputContainer.style.display === "none") {
+                    inputContainer.style.display = "flex"; // Sử dụng flex
+                    localStorage.setItem("inputHidden", "false");
+                } else {
+                    inputContainer.style.display = "none";
+                    localStorage.setItem("inputHidden", "true");
+                }
+            });
+
+            // Nút "Bảo Dưỡng": Điều hướng sang bd.html
+            maintenanceButton.addEventListener("click", () => {
+                window.location.href = "bd.html";
+            });
+
+            // Sự kiện "Đăng xuất"
+            logoutButton.addEventListener("click", () => {
+                // Xóa dữ liệu ứng dụng theo key "userAppDataOfDKien" trong localStorage
+                localStorage.removeItem("userAppDataOfDKien");
+                
+                // Chuyển hướng về trang login.html
+                window.location.href = "login.html";
+            });
+
+
+
+            // --- LƯU GIÁ TRỊ VÀO LocalStorage (chỉ các trường input/select còn lại) ---
+             areaSelect.addEventListener("change", () => localStorage.setItem("area", areaSelect.value));
+             locationSelect.addEventListener("change", () => localStorage.setItem("location", locationSelect.value));
+             issueSelect.addEventListener("change", () => localStorage.setItem("issue", issueSelect.value));
+             replacementPartInput.addEventListener("input", () => localStorage.setItem("replacementPart", replacementPartInput.value));
+             noteInput.addEventListener("input", () => localStorage.setItem("note", noteInput.value));
+
+            // --- QUÉT MÃ QR ---
+            // Khi bấm "Start" để quét mã QR
+// Khi bấm "Start" để quét mã QR
+startButton.addEventListener("click", () => {
+  // Nếu có instance trước đó, dừng nó để tránh lỗi lặp lại
+  clearJobAndAssetData();
+  if (scannerInstance) {
+    scannerInstance.stop();
+  }
+
+  // Hiển thị container video cho quá trình quét mã
+  videoContainer.style.display = "block";
+
+  // Tạo một instance mới của QrScanner
+  scannerInstance = new QrScanner(
+    videoElement,
+    result => {
+      // Khi quét được mã, hiển thị trạng thái "Đang tải..." và dừng scanner
+      assetCodeEl.textContent = "Đang tải thông tin tài sản...";
+      videoContainer.style.display = "none";
+      scannerInstance.stop();
+
+      // Xóa trạng thái công việc hoàn thành của lần quét trước (nếu có)
+      localStorage.removeItem("jobFinished");
+
+      // Gọi API để lấy thông tin tài sản dựa theo mã QR vừa quét
+      fetchAssetData(result);
+    },
+    error => {
+      console.warn(`Lỗi quét mã: ${error}`);
+      assetCodeEl.textContent = "Lỗi quét hoặc không tìm thấy mã."; // Thông báo lỗi cho người dùng
+    }
+  );
+
+  scannerInstance.start();
+});
+
+// Sự kiện dừng quét nếu người dùng nhấn nút "Stop"
+stopButton.addEventListener("click", () => {
+  if (scannerInstance) {
+    scannerInstance.stop();
+    videoContainer.style.display = "none";
+  }
+});
+
+// --- HÀM GỌI API LẤY THÔNG TIN TÀI SẢN (SAU QR) ---
+function fetchAssetData(qrResult) {
+  // Kiểm tra thông tin người dùng đã được tải chưa
+  if (
+    !userAppData ||
+    !userAppData.user ||
+    !userAppData.user.username ||
+    !userAppData.user.name ||
+    !userAppData.user.token
+  ) {
+    alert("Thông tin người dùng (ID, Tên hoặc Token) chưa được tải. Vui lòng nhấn 'Get Data' trước.");
+    assetCodeEl.textContent = qrResult; // Vẫn hiển thị mã QR đã quét
+    serialNumberEl.textContent = "";
+    machineTypeEl.textContent = "";
+    brandEl.textContent = "";
+    modelEl.textContent = "";
+    initJobButton.style.display = "none";
+    endJobButton.style.display = "none";
+    return;
+  }
+
+  const idUser = userAppData.user.username;
+  const tenNguoiDung = userAppData.user.name;
+  const token = userAppData.user.token;
+
+  // Lấy API base URL từ localStorage
+  const jsonData = localStorage.getItem("userAppDataOfDKien");
+  const apiBaseUrl = jsonData ? JSON.parse(jsonData).app.truongTrinhLayDanhSachTaiSanTNM.API : "";
+
+  if (!apiBaseUrl) {
+    alert("Không tìm thấy API Base URL.");
+    return;
+  }
+
+  // Tạo chuỗi dữ liệu dạng URL-encoded cho POST body
+  const requestBody =
+    `func=laythongtintsnhamay` +
+    `&idUser=${encodeURIComponent(idUser)}` +
+    `&tenNguoiDung=${encodeURIComponent(tenNguoiDung)}` +
+    `&maTS=${encodeURIComponent(qrResult)}` +
+    `&token=${encodeURIComponent(token)}`;
+
+  console.log("Request body:", requestBody);
+
+  // Hiển thị trạng thái loading cho người dùng
+  assetCodeEl.textContent = "Đang tải thông tin tài sản...";
+
+  // Gửi POST request với định dạng x-www-form-urlencoded
+  fetch(apiBaseUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: requestBody
+  })
+    .then(response => {
+      if (!response.ok) throw new Error("Network response was not ok");
+      return response.json();
+    })
+    .then(data => {
+      console.log("Dữ liệu từ API:", data);
+
+      // Kiểm tra trạng thái trả về từ API
+      if (data.status && data.status.toLowerCase() === "success") {
+        // Nếu thành công, cập nhật giao diện với thông tin chi tiết từ API
+        assetCodeEl.textContent = data.maTaiSan || qrResult;
+        serialNumberEl.textContent = data.soSeri || "";
+        machineTypeEl.textContent = data.loaiMay || "";
+        brandEl.textContent = data.nhanHieu || "";
+        modelEl.textContent = data.model || "";
+        initJobButton.style.display = "block";
+      } else {
+        // Nếu không thành công, giữ lại mã QR đã quét và hiển thị thông báo
+        assetCodeEl.textContent = qrResult;
+        serialNumberEl.textContent = "";
+        machineTypeEl.textContent = "";
+        brandEl.textContent = "";
+        modelEl.textContent = "";
+        initJobButton.style.display = "none";
+        alert(data.notification || "Không tìm thấy thông tin chi tiết cho mã tài sản này.");
+      }
+
+      // Ẩn nút kết thúc công việc (endJobButton) sau khi nhận kết quả
+      endJobButton.style.display = "none";
+    })
+    .catch(error => {
+      console.error("Error fetching asset data:", error);
+      // Nếu có lỗi, giữ lại mã QR đã quét và hiển thị thông báo
+      assetCodeEl.textContent = qrResult;
+      serialNumberEl.textContent = "";
+      machineTypeEl.textContent = "";
+      brandEl.textContent = "";
+      modelEl.textContent = "";
+      initJobButton.style.display = "none";
+      endJobButton.style.display = "none";
+      alert("Không thể lấy thông tin tài sản. Vui lòng kiểm tra kết nối hoặc API.");
+    });
+}
+
+            // --- KHỞI TẠO CÔNG VIỆC ---
+initJobButton.addEventListener("click", () => {
+    // Kiểm tra dữ liệu người dùng
+    if (!userAppData || !userAppData.user || !userAppData.user.username || !userAppData.user.name || !userAppData.user.local || !userAppData.user.token) {
+        alert("Thông tin người dùng (ID, Tên, Phân xưởng hoặc Token) chưa đầy đủ. Vui lòng nhấn 'Get Data' trước.");
+        return;
+    }
+
+    let idUser = userAppData.user.username;
+    let tenNguoiDung = userAppData.user.name;
+    let phanXuong = userAppData.user.local;
+    let token = userAppData.user.token;
+
+    // Xác định Phân xưởng
+    
+
+    let soSeri = serialNumberEl.textContent.trim();
+    let loaiMay = machineTypeEl.textContent.trim();
+    let nhanHieu = brandEl.textContent.trim();
+    let modelVal = modelEl.textContent.trim();
+    let mts = assetCodeEl.textContent.trim();
+
+    if (!mts) {
+        alert("Mã tài sản chưa được quét hoặc thông tin chưa được tải.");
+        return;
+    }
+
+    // Lấy giá trị từ dropdown sự cố
+    let khuVuc = areaSelect.value;
+    let viTriCuThe = locationSelect.value;
+    let suCo = issueSelect.value;
+
+    // URL API
+    const jsonData = localStorage.getItem("userAppDataOfDKien");
+    const apiBaseUrl = jsonData ? JSON.parse(jsonData).app.truongTrinhBaoCaoSuaChua.API : "";
+
+    let jobUrl = `${apiBaseUrl}`;
+
+    // Chuyển đổi dữ liệu thành chuỗi URL-encoded
+    let requestBody = `func=taocongviec` +
+        `&soSeri=${encodeURIComponent(soSeri)}` +
+        `&loaiMay=${encodeURIComponent(loaiMay)}` +
+        `&nhanHieu=${encodeURIComponent(nhanHieu)}` +
+        `&model=${encodeURIComponent(modelVal)}` +
+        `&mts=${encodeURIComponent(mts)}` +
+        `&idUser=${encodeURIComponent(idUser)}` +
+        `&tenNguoiDung=${encodeURIComponent(tenNguoiDung)}` +
+        `&phanXuong=${encodeURIComponent(phanXuong)}` +
+        `&token=${encodeURIComponent(token)}` +
+        `&khuVuc=${encodeURIComponent(khuVuc)}` +
+        `&viTriCuThe=${encodeURIComponent(viTriCuThe)}` +
+        `&suCo=${encodeURIComponent(suCo)}`;
+
+    console.log("Sending job request via POST:", requestBody);
+
+    // Thực hiện fetch với phương thức POST
+    fetch(jobUrl, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: requestBody
+    })
+    .then(response => {
+        if (!response.ok) throw new Error("Network response was not ok");
+        return response.json();
+    })
+    .then(jobData => {
+        if (jobData.status === "success") {
+            let currentTime = new Date().toLocaleString();
+            startTimeEl.textContent = currentTime;
+            localStorage.setItem("startTime", currentTime);
+
+            let timeCode = jobData.data.thoiGianBatDau;
+            timeCodeEl.textContent = timeCode;
+            localStorage.setItem("timeCode", timeCode);
+
+            localStorage.setItem("rowNum", jobData.data.rowNum);
+            localStorage.setItem("maYC", jobData.data.maYC);
+
+            localStorage.setItem("assetCode", mts);
+            localStorage.setItem("serialNumber", soSeri);
+            localStorage.setItem("machineType", loaiMay);
+            localStorage.setItem("brand", nhanHieu);
+            localStorage.setItem("model", modelVal);
+
+            localStorage.setItem("area", khuVuc);
+            localStorage.setItem("location", viTriCuThe);
+            localStorage.setItem("issue", suCo);
+            localStorage.setItem("replacementPart", replacementPartInput.value.trim());
+            localStorage.setItem("note", noteInput.value.trim());
+
+            localStorage.setItem("jobActive", "true");
+            localStorage.removeItem("jobFinished");
+
+            alert(jobData.notification);
+            initJobButton.style.display = "none";
+            endJobButton.style.display = "block";
+        } else {
+            //alert(jobData.notification);
+            if (jobData.command && jobData.data) {
+                if (confirm(jobData.notification + "\n\nNhấn OK để Khôi Phục, Huỷ để xóa dữ liệu hiện tại.")) {
+                    restoreData(jobData.data);
+                    alert("Dữ liệu đã được khôi phục từ công việc hiện có.");
+                    localStorage.setItem("jobActive", "true");
+                    localStorage.removeItem("jobFinished");
+                    initJobButton.style.display = "none";
+                    endJobButton.style.display = "block";
+                } else {
+                    clearJobAndAssetData();
+                    cancelJob(jobData.data);
+                    //alert("Dữ liệu công việc và tài sản đã được xóa.");
+                    initJobButton.style.display = "none";
+                    endJobButton.style.display = "none";
+                }
+            } else {
+                if (localStorage.getItem("jobActive") !== "true") {
+                    initJobButton.style.display = "block";
+                } else {
+                    initJobButton.style.display = "none";
+                }
+                endJobButton.style.display = "none";
+            }
+        }
+    })
+    .catch(error => {
+        console.error("Error creating job:", error);
+        alert("Có lỗi khi tạo công việc. Vui lòng kiểm tra lại.");
+        if (!localStorage.getItem("jobActive")) {
+            initJobButton.style.display = "block";
+        }
+        endJobButton.style.display = "none";
+    });
+});
+
+// --- KẾT THÚC CÔNG VIỆC ---
+endJobButton.addEventListener("click", () => {
+    // Kiểm tra thông tin người dùng
+    if (!userAppData || !userAppData.user || !userAppData.user.username || !userAppData.user.name || !userAppData.user.local || !userAppData.user.token) {
+        alert("Thông tin người dùng (ID, Tên, Phân xưởng hoặc Token) chưa đầy đủ. Vui lòng nhấn 'Get Data' trước.");
+        return;
+    }
+
+    let idUser = userAppData.user.username;
+    let tenNguoiDung = userAppData.user.name;
+    let phanXuongVal = userAppData.user.local;
+    let token = userAppData.user.token;
+
+    // Xác định Phân xưởng
+    let phanXuong = phanXuongVal && phanXuongVal.toUpperCase() === "A" ? "Xuong A" :
+                    phanXuongVal && phanXuongVal.toUpperCase() === "B" ? "Xuong B" :
+                    phanXuongVal || "";
+
+    let mts = assetCodeEl.textContent.trim();
+    let khuVuc = areaSelect.value;
+    let viTriCuThe = locationSelect.value;
+    let suCo = issueSelect.value;
+    let maYC = localStorage.getItem("maYC") || "";
+    let rowNum = localStorage.getItem("rowNum") || "";
+    let thietBiThayThe = replacementPartInput.value.trim();
+    let ghiChu = noteInput.value.trim();
+
+    if (!maYC || !rowNum || !mts) {
+        alert("Không có thông tin công việc đang hoạt động.");
+        clearJobAndAssetData();
+        return;
+    }
+
+    // Lấy URL API từ dữ liệu ứng dụng nếu có
+    const jsonData = localStorage.getItem("userAppDataOfDKien");
+    const apiBaseUrl = jsonData ? JSON.parse(jsonData).app.truongTrinhBaoCaoSuaChua.API : "";
+
+    if (!apiBaseUrl) {
+        alert("Không tìm thấy API Base URL.");
+        return;
+    }
+
+    // Chuyển đổi dữ liệu thành chuỗi URL-encoded
+    let requestBody = `func=ketthuccongviec` +
+        `&mts=${encodeURIComponent(mts)}` +
+        `&idUser=${encodeURIComponent(idUser)}` +
+        `&tenNguoiDung=${encodeURIComponent(tenNguoiDung)}` +
+        `&phanXuong=${encodeURIComponent(phanXuong)}` +
+        `&khuVuc=${encodeURIComponent(khuVuc)}` +
+        `&viTriCuThe=${encodeURIComponent(viTriCuThe)}` +
+        `&token=${encodeURIComponent(token)}` +
+        `&maYC=${encodeURIComponent(maYC)}` +
+        `&rowNum=${encodeURIComponent(rowNum)}` +
+        `&suCo=${encodeURIComponent(suCo)}` +
+        `&thietBiThayThe=${encodeURIComponent(thietBiThayThe)}` +
+        `&ghiChu=${encodeURIComponent(ghiChu)}`;
+
+    console.log("Request body:", requestBody);
+
+    fetch(apiBaseUrl, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: requestBody
+    })
+    .then(response => {
+        if (!response.ok) throw new Error("Network response was not ok");
+        return response.json();
+    })
+    .then(endJobData => {
+        if (endJobData.status === "success") {
+            clearJobAndAssetData();
+            localStorage.setItem("jobFinished", "true");
+            endJobButton.style.display = "none";
+            alert(endJobData.notification);
+        } else if (endJobData.status === "fail") {
+            alert(endJobData.notification);
+            endJobButton.style.display = "block";
+        }
+    })
+    .catch(error => {
+        console.error("Error ending job:", error);
+        alert("Có lỗi khi kết thúc công việc. Vui lòng kiểm tra lại.");
+        endJobButton.style.display = "block";
+    });
+});
+ 
+// HỦY CÔNG VIỆC
+function cancelJob(data) {
+    // Kiểm tra thông tin người dùng
+    if (!userAppData || !userAppData.user || !userAppData.user.username || !userAppData.user.token) {
+        alert("Thông tin người dùng (ID hoặc Token) chưa đầy đủ. Vui lòng nhấn 'Get Data' trước.");
+        return;
+    }
+
+    let idUser = userAppData.user.username;
+    let token = userAppData.user.token;
+    let mts = data.mts;
+    let maYC = data.maYC;
+    let rowNum = data.rowNum;
+
+    if (!mts || !maYC || !rowNum) {
+        alert("Không có thông tin công việc đang hoạt động.");
+        return;
+    }
+
+    // Lấy URL API từ dữ liệu ứng dụng nếu có
+    const jsonData = localStorage.getItem("userAppDataOfDKien");
+    const apiBaseUrl = jsonData ? JSON.parse(jsonData).app.truongTrinhBaoCaoSuaChua.API : "";
+
+    if (!apiBaseUrl) {
+        alert("Không tìm thấy API Base URL.");
+        return;
+    }
+
+    // Chuyển đổi dữ liệu thành chuỗi URL-encoded
+    let requestBody = `func=huycongviec` +
+        `&mts=${encodeURIComponent(mts)}` +
+        `&idUser=${encodeURIComponent(idUser)}` +
+        `&maYC=${encodeURIComponent(maYC)}` +
+        `&rowNum=${encodeURIComponent(rowNum)}` +
+        `&token=${encodeURIComponent(token)}`;
+
+    console.log("Request body:", requestBody);
+
+    fetch(apiBaseUrl, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: requestBody
+    })
+    .then(response => {
+        if (!response.ok) throw new Error("Network response was not ok");
+        return response.json();
+    })
+    .then(cancelJobData => {
+        if (cancelJobData.status === "success") {
+            alert(cancelJobData.notification);
+        } else if (cancelJobData.status === "fail") {
+            alert(cancelJobData.notification);
+        }
+    })
+    .catch(error => {
+        console.error("Error canceling job:", error);
+        alert("Có lỗi khi hủy công việc. Vui lòng kiểm tra lại.");
+    });
+}
+
+
+            // --- HÀM KHÔI PHỤC DỮ LIỆU (trường hợp có command "restore") ---
+            function restoreData(data) {
+                // Chỉ khôi phục dữ liệu job và asset, không ảnh hưởng đến thông tin người dùng
+                assetCodeEl.textContent = data.mts || "";
+                serialNumberEl.textContent = data.soSeri || "";
+                machineTypeEl.textContent = data.loaiMay || "";
+                brandEl.textContent = data.nhanHieu || "";
+                modelEl.textContent = data.model || "";
+                timeCodeEl.textContent = data.thoiGianBatDau || "";
+                startTimeEl.textContent = data.thoiGianBatDau || "";
+
+                // Khôi phục các giá trị đã chọn cho dropdowns sự cố từ data restore nếu có
+                // (Cần thêm các trường tương ứng trong data restore nếu API trả về)
+                 areaSelect.value = data.khuVuc || ""; // Assuming restore data includes khuVuc
+                 locationSelect.value = data.viTriCuThe || ""; // Assuming restore data includes viTriCuThe
+                 issueSelect.value = data.suCo || ""; // Assuming restore data includes suCo
+                 replacementPartInput.value = data.thietBiThayThe || ""; // Assuming restore data includes thietBiThayThe
+                 noteInput.value = data.ghiChu || ""; // Assuming restore data includes ghiChu
+
+
+                localStorage.setItem("assetCode", data.mts || "");
+                localStorage.setItem("serialNumber", data.soSeri || "");
+                localStorage.setItem("machineType", data.loaiMay || "");
+                localStorage.setItem("brand", data.nhanHieu || "");
+                localStorage.setItem("model", data.model || "");
+                localStorage.setItem("timeCode", data.thoiGianBatDau || "");
+                localStorage.setItem("startTime", data.thoiGianBatDau || "");
+                localStorage.setItem("maYC", data.maYC || "");
+                localStorage.setItem("rowNum", data.rowNum || "");
+
+                 // Lưu trạng thái các dropdown sự cố đã khôi phục vào localStorage riêng lẻ
+                 localStorage.setItem("area", areaSelect.value);
+                 localStorage.setItem("location", locationSelect.value);
+                 localStorage.setItem("issue", issueSelect.value);
+                 localStorage.setItem("replacementPart", replacementPartInput.value);
+                 localStorage.setItem("note", noteInput.value);
+
+            }
+
+            // --- HÀM XÓA DỮ LIỆU CÔNG VIỆC & TÀI SẢN ---
+            function clearJobAndAssetData() {
+                // Chỉ xóa dữ liệu liên quan đến kết quả quét và công việc
+                localStorage.removeItem("assetCode");
+                localStorage.removeItem("serialNumber");
+                localStorage.removeItem("machineType");
+                localStorage.removeItem("brand");
+                localStorage.removeItem("model");
+                localStorage.removeItem("timeCode");
+                localStorage.removeItem("startTime");
+                localStorage.removeItem("maYC");
+                localStorage.removeItem("rowNum");
+                localStorage.removeItem("jobActive");
+                // localStorage.removeItem("jobFinished"); // Giữ lại trạng thái jobFinished
+
+                assetCodeEl.textContent = "";
+                serialNumberEl.textContent = "";
+                machineTypeEl.textContent = "";
+                brandEl.textContent = "";
+                modelEl.textContent = "";
+                timeCodeEl.textContent = "";
+                startTimeEl.textContent = "";
+                 //areaSelect.value = ""; // Reset dropdown sự cố
+                 //locationSelect.value = "";
+                 issueSelect.value = "";
+                 replacementPartInput.value = ""; // Xóa input Linh kiện thay thế
+                 noteInput.value = ""; // Xóa input Ghi chú
+
+                 // Xóa các giá trị này khỏi localStorage
+                 //localStorage.removeItem("area");
+                 //localStorage.removeItem("location");
+                 localStorage.removeItem("issue");
+                 localStorage.removeItem("replacementPart");
+                 localStorage.removeItem("note");
+
+
+                initJobButton.style.display = "none"; // Ẩn nút khởi tạo sau khi xóa
+                endJobButton.style.display = "none"; // Ẩn nút kết thúc sau khi xóa
+            }
+
+
+            // --- KIỂM TRA TRẠNG THÁI CÔNG VIỆC KHI LOAD LẠI TRANG ---
+            // Hàm helper để cập nhật hiển thị nút dựa trên trạng thái
+            function updateButtonVisibility() {
+                if (localStorage.getItem("jobFinished") === "true") {
+                    clearJobAndAssetData();
+                    initJobButton.style.display = "none";
+                    endJobButton.style.display = "none";
+                    localStorage.removeItem("jobFinished");
+                } else if (localStorage.getItem("jobActive") === "true" && localStorage.getItem("maYC") && localStorage.getItem("rowNum")) {
+                    initJobButton.style.display = "none";
+                    endJobButton.style.display = "block";
+                    // Khôi phục dữ liệu hiển thị từ localStorage
+                    assetCodeEl.textContent = localStorage.getItem("assetCode") || "";
+                    serialNumberEl.textContent = localStorage.getItem("serialNumber") || "";
+                    machineTypeEl.textContent = localStorage.getItem("machineType") || "";
+                    brandEl.textContent = localStorage.getItem("brand") || "";
+                    modelEl.textContent = localStorage.getItem("model") || "";
+                    timeCodeEl.textContent = localStorage.getItem("timeCode") || "";
+                    startTimeEl.textContent = localStorage.getItem("startTime") || "";
+                    areaSelect.value = localStorage.getItem("area") || "";
+                    locationSelect.value = localStorage.getItem("location") || "";
+                    issueSelect.value = localStorage.getItem("issue") || "";
+                    replacementPartInput.value = localStorage.getItem("replacementPart") || "";
+                    noteInput.value = localStorage.getItem("note") || "";
+                } else if (localStorage.getItem("assetCode") && localStorage.getItem("assetCode") !== "") {
+                    initJobButton.style.display = "block";
+                    endJobButton.style.display = "none";
+                     // Khôi phục dữ liệu tài sản hiển thị từ localStorage
+                    assetCodeEl.textContent = localStorage.getItem("assetCode") || "";
+                    serialNumberEl.textContent = localStorage.getItem("serialNumber") || "";
+                    machineTypeEl.textContent = localStorage.getItem("machineType") || "";
+                    brandEl.textContent = localStorage.getItem("brand") || "";
+                    modelEl.textContent = localStorage.getItem("model") || "";
+                    // Reset dữ liệu job/sự cố
+                     timeCodeEl.textContent = "";
+                     startTimeEl.textContent = "";
+                     //areaSelect.value = "";
+                     //locationSelect.value = "";
+                     issueSelect.value = "";
+                     replacementPartInput.value = "";
+                     noteInput.value = "";
+                    localStorage.removeItem("timeCode");
+                    localStorage.removeItem("startTime");
+                    localStorage.removeItem("maYC");
+                    localStorage.removeItem("rowNum");
+                    localStorage.removeItem("jobActive");
+                    localStorage.removeItem("jobFinished");
+                    //localStorage.removeItem("area");
+                    //localStorage.removeItem("location");
+                    localStorage.removeItem("issue");
+                    localStorage.removeItem("replacementPart");
+                    localStorage.removeItem("note");
+
+                } else {
+                    initJobButton.style.display = "none";
+                    endJobButton.style.display = "none";
+                    clearJobAndAssetData(); // Đảm bảo giao diện sạch
+                }
+            }
+
+            // Gọi hàm kiểm tra trạng thái khi load trang
+            updateButtonVisibility();
+        };
+    </script>
+
+    <style>
+        /* --- CSS cho khối nút trên đầu trang --- */
+        .top-button-container {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            padding: 10px;
+            gap: 10px;
+            box-sizing: border-box;
+        }
+        .top-button-container button {
+            width: 32%;
+            padding: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        .top-button-container button:hover {
+            background-color: #0056b3;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            width: 100%;
+            margin: 0;
+            box-sizing: border-box;
+        }
+
+        /* --- Khối hiển thị thông tin người dùng (không chỉnh sửa) --- */
+        .input-container {
+            width: 100%;
+            padding: 15px;
+            border-bottom: 1px solid #ccc;
+            display: flex; /* Sử dụng flex */
+            flex-direction: column;
+            align-items: center; /* Căn giữa nội dung trong container */
+            box-sizing: border-box;
+        }
+
+         /* CSS cho bảng bên trong input-container (thông tin người dùng) */
+         .input-container table {
+             width: 100%;
+             border-collapse: collapse;
+             text-align: left;
+             max-width: 400px; /* Giới hạn chiều rộng bảng thông tin người dùng */
+         }
+
+         .input-container th,
+         .input-container td {
+             padding: 8px;
+             border: 1px solid #ddd;
+             box-sizing: border-box;
+             font-size: 14px;
+         }
+
+         .input-container th {
+             width: 35%; /* Điều chỉnh độ rộng cột tiêu đề */
+             background-color: #f4f4f4;
+             vertical-align: middle; /* Căn giữa theo chiều dọc */
+         }
+
+          .input-container td {
+              width: 65%; /* Điều chỉnh độ rộng cột thông tin */
+              word-break: break-word; /* Ngắt chữ nếu quá dài */
+          }
+
+        /* --- Nút "Bắt đầu quét" & "Dừng quét" --- */
+        .button-container {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            padding: 10px;
+            gap: 10px;
+            box-sizing: border-box;
+        }
+        .button-container button {
+            width: 48%;
+            padding: 12px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        .button-container button:hover {
+            background-color: #0056b3;
+        }
+        /* --- Container video --- */
+        /* --- Container video cho khung quét QR --- */
+        #videoContainer {
+            display: none;  /* Ẩn container khi không sử dụng */
+            margin-bottom: 20px;
+        }
+
+        /* --- Wrapper để giữ tỷ lệ 3:4 --- */
+        #videoWrapper {
+            position: relative;
+            width: 100%;
+            max-width: 600px;   /* Giới hạn chiều rộng tối đa */
+            padding-bottom: 75%;  /* Chiều cao = 75% của chiều rộng (tỷ lệ 3:4) */
+            overflow: hidden;
+            background: #000; /* Nền đen cho khung video */
+        }
+
+        /* --- Thẻ video, bao phủ toàn bộ khung của wrapper --- */
+        #videoElement {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;  /* Đảm bảo hình ảnh video phủ khung mà không bị méo */
+        }
+        /* --- Bảng hiển thị kết quả & Sự cố --- */
+        table { /* Áp dụng cho cả bảng kết quả và bảng sự cố */
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            margin-top: 20px;
+            box-sizing: border-box;
+             max-width: 600px; /* Giới hạn chiều rộng bảng kết quả */
+             margin-left: auto;
+             margin-right: auto;
+        }
+        table th,
+        table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            box-sizing: border-box;
+        }
+        table th {
+            width: 30%; /* Giữ nguyên độ rộng gốc cho bảng kết quả */
+            background-color: #f4f4f4;
+        }
+        table td {
+            width: 65%; /* Giữ nguyên độ rộng gốc cho bảng kết quả */
+             word-break: break-word; /* Ngắt chữ nếu quá dài */
+        }
+
+         /* CSS cho input/select trong bảng sự cố */
+         #area, #location, #issue, #replacement-part, #note {
+             width: 100%;
+             padding: 8px; /* Giảm padding để nhỏ gọn */
+             box-sizing: border-box;
+             border: 1px solid #ccc;
+             border-radius: 4px; /* Bo góc nhẹ */
+             font-size: 14px; /* Giảm font size */
+         }
+
+        /* --- Nút "Khởi tạo công việc" --- */
+        #init-job-button {
+            display: none;
+            margin: 20px auto;
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #28A745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        #init-job-button:hover {
+            background-color: #218838;
+        }
+        /* --- Nút "Kết thúc công việc" --- */
+        #end-job-button {
+            display: none;
+            margin: 20px auto;
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        #end-job-button:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="top-button-container">
+        <button id="logout-button">Đăng xuất</button>
+        <button id="get-button">Get Data</button>
+        <button id="toggle-button">Ẩn/Hiện</button>
+        <button id="maintenance-button">Bảo Dưỡng</button>
+    </div>
+
+    <div class="input-container">
+        <table>
+            <tr>
+                <th>ID của bạn</th>
+                <td id="displayed-user-id"></td> </tr>
+            <tr>
+                <th>Tên người dùng</th>
+                <td id="displayed-username"></td> </tr>
+             <tr>
+                <th>Phân xưởng</th>
+                <td id="displayed-phanxuong"></td> </tr>
+        </table>
+    </div>
+
+    <div class="button-container">
+        <button id="start-button">Bắt đầu quét</button>
+        <button id="stop-button">Dừng quét</button>
+    </div>
+
+    <div id="videoContainer">
+        <div id="videoWrapper">
+          <video id="videoElement" autoplay></video>
+        </div>
+    </div>
+
+    <table>
+        <tr>
+            <th>Mã tài sản</th>
+            <td id="asset-code"></td>
+        </tr>
+        <tr>
+            <th>S/N</th>
+            <td id="serial-number"></td>
+        </tr>
+        <tr>
+            <th>Loại Máy</th>
+            <td id="machine-type"></td>
+        </tr>
+        <tr>
+            <th>Nhãn hiệu</th>
+            <td id="brand"></td>
+        </tr>
+        <tr>
+            <th>Model</th>
+            <td id="model"></td>
+        </tr>
+    </table>
+
+    <table>
+        <tr>
+            <th>Thời gian bắt đầu</th>
+            <td id="start-time"></td>
+        </tr>
+        <tr>
+            <th>Mã thời gian</th>
+            <td id="time-code"></td>
+        </tr>
+        <tr>
+            <th>Vị trí</th>
+            <td>
+                <select id="location">
+                    <option value="">Chọn vị trí</option>
+                </select>
+            </td>
+        </tr>
+        <tr>
+            <th>Khu vực</th>
+            <td>
+                <select id="area">
+                     <option value="">Chọn khu vực</option>
+                </select>
+            </td>
+        </tr>
+        <tr>
+            <th>Sự cố</th>
+            <td>
+                <select id="issue">
+                     <option value="">Chọn sự cố</option>
+                </select>
+            </td>
+        </tr>
+        <tr>
+            <th>Linh kiện thay thế</th>
+            <td><input type="text" id="replacement-part" placeholder="Nhập linh kiện thay thế (nếu có)"></td>
+        </tr>
+        <tr>
+            <th>Ghi chú</th>
+            <td><input type="text" id="note" placeholder="Nhập ghi chú (nếu có)"></td>
+        </tr>
+    </table>
+
+    <button id="init-job-button">Khởi tạo công việc</button>
+    <button id="end-job-button">Kết thúc công việc</button>
+</body>
+</html>

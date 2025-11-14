@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quét & Ký Bảo Dưỡng</title>
+  <style>
+    /* ------------------ STYLE CHUNG ------------------ */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      width: 100vw;
+      padding: 20px;
+      font-size: 14px;
+    }
+    .container {
+      width: 100%;
+    }
+    /* ------------------ NÚT VÀ THÔNG TIN NGƯỜI DÙNG ------------------ */
+    .center-button {
+      font-size: 16px;
+      padding: 10px 20px;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-align: center;
+      display: block;
+      margin: 0 auto 20px;
+      width: fit-content;
+    }
+    .info-table-new {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      font-size: 11px;
+    }
+    .info-table-new th,
+    .info-table-new td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: left;
+    }
+    .info-table-new th {
+      background-color: #ddd;
+      width: 30%;
+    }
+    .info-table-new td {
+      width: 70%;
+    }
+    /* ------------------ DROPDOWN & THÔNG BÁO ------------------ */
+    .dropdown {
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+    select {
+      font-size: 16px;
+      padding: 8px;
+      flex-grow: 1;
+    }
+    #notificationDiv {
+      visibility: hidden;
+      color: green;
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 14px;
+      min-height: 20px; /* Dự sẵn không gian thông báo */
+    }
+    /* ------------------ BẢNG TÀI SẢN ------------------ */
+    table.main-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      font-size: 13px;
+    }
+    table.main-table th,
+    table.main-table td {
+      border: 1px solid #ccc;
+      padding: 15px;
+      text-align: left;
+    }
+    table.main-table th {
+      background-color: #dddddd;
+      width: 30%;
+    }
+    table.main-table td {
+      width: 70%;
+    }
+    /* ------------------ INPUT GHI CHÚ ------------------ */
+    .input-text {
+      width: 100%;
+      padding: 10px;
+      font-size: 14px;
+      margin-bottom: 20px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    /* ------------------ VIDEO & WRAPPER ------------------ */
+    #videoContainer {
+      display: none;
+      margin-bottom: 20px;
+    }
+    #videoWrapper {
+      position: relative;
+      width: 100%;
+      max-width: 600px;
+      padding-bottom: 75%; /* Chiều cao = 75% của chiều rộng (tỉ lệ 3:4) */
+      overflow: hidden;
+      background: #000;
+    }
+    #videoElement {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    /* ------------------ NÚT QUÉT & KÝ ------------------ */
+    .buttons {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    button.scan-button {
+      padding: 10px 20px;
+      font-size: 14px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    #startScan {
+      background-color: #4CAF50;
+      color: white;
+    }
+    #startScan:hover {
+      background-color: #45a049;
+    }
+    #stopScan {
+      background-color: #f44336;
+      color: white;
+    }
+    #stopScan:hover {
+      background-color: #d32f2f;
+    }
+    .sign-button {
+      background-color: #2196F3;
+      color: white;
+      display: block;
+      text-align: center;
+      width: fit-content;
+      padding: 10px 20px;
+      margin: 0 auto;
+      font-size: 14px;
+      border: none;
+      outline: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .sign-button:hover {
+      background-color: #1976D2;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- // QUAY TRỞ LẠI -->
+    <button class="center-button" id="backButton">Quay Lại Trang Sửa Chữa</button>
+    
+    <!-- // THÔNG TIN NGƯỜI DÙNG -->
+    <table class="info-table-new">
+      <tr>
+        <th>ID của bạn</th>
+        <td id="displayedUserId"></td>
+      </tr>
+      <tr>
+        <th>Tên người dùng</th>
+        <td id="displayedUsername"></td>
+      </tr>
+      <tr>
+        <th>Phân xưởng</th>
+        <td id="displayedPhanXuong"></td>
+      </tr>
+    </table>
+    
+    <!-- // DROPDOWN MÃ BẢO DƯỠNG -->
+    <div class="dropdown">
+      <label for="maintenanceCode">Mã Bảo Dưỡng:</label>
+      <select id="maintenanceCode">
+        <option value="">Chọn mã Bảo dưỡng</option>
+      </select>
+    </div>
+    <!-- Thông báo hiển thị dưới dropdown -->
+    <div id="notificationDiv"></div>
+    
+    <!-- // BẢNG TÀI SẢN -->
+    <table class="main-table" id="assetTable">
+      <tr>
+        <th>Mã tài sản</th>
+        <td id="assetCodeEl"></td>
+      </tr>
+      <tr>
+        <th>S/N</th>
+        <td id="serialNumberEl"></td>
+      </tr>
+      <tr>
+        <th>Loại máy</th>
+        <td id="machineTypeEl"></td>
+      </tr>
+      <tr>
+        <th>Nhãn hiệu</th>
+        <td id="brandEl"></td>
+      </tr>
+      <tr>
+        <th>Model</th>
+        <td id="modelEl"></td>
+      </tr>
+    </table>
+    
+    <!-- // INPUT GHI CHÚ -->
+    <input type="text" class="input-text" id="ghiChuInput" placeholder="Ghi chú" />
+    
+    <!-- // VIDEO QUÉT (ĐƯỢC HIỂN THỊ THAY THẾ BẢNG TÀI SẢN KHI QUÉT) -->
+    <div id="videoContainer">
+      <div id="videoWrapper">
+        <video id="videoElement"></video>
+      </div>
+    </div>
+    
+    <!-- // NÚT QUÉT -->
+    <div class="buttons">
+      <button id="startScan" class="scan-button">Bắt đầu quét</button>
+      <button id="stopScan" class="scan-button">Dừng quét</button>
+    </div>
+    
+    <!-- // NÚT KÝ BẢO DƯỠNG -->
+    <button class="sign-button" id="signButton">Ký Bảo Dưỡng</button>
+  </div>
+
+  <!-- // SCRIPT KHỞI TẠO THÔNG TIN -->
+  <script>
+    // QUAY TRỞ LẠI TRANG SỬA CHỈA
+    document.getElementById("backButton").addEventListener("click", function () {
+      window.location.href = "index.html";
+    });
+
+    // POPULATE DROPDOWN VÀ KHÔI PHỤC GIÁ TRỊ ĐÃ LƯU
+    function populateDropdowns(appData) {
+      const areaSelect = document.getElementById("maintenanceCode");
+      areaSelect.innerHTML = '<option value="">Chọn mã Bảo dưỡng</option>';
+      if (appData && appData["truongTrinhBaoDuong"] && appData["truongTrinhBaoDuong"]["Mã Hoạt Động"]) {
+        appData["truongTrinhBaoDuong"]["Mã Hoạt Động"]
+          .split(",").forEach(item => {
+            const option = document.createElement("option");
+            option.value = item.trim();
+            option.textContent = item.trim();
+            areaSelect.appendChild(option);
+          });
+      }
+      // KHÔI PHỤC GIÁ TRỊ ĐÃ LƯU
+      const storedValue = localStorage.getItem("maBaoDuong");
+      if (storedValue) {
+        areaSelect.value = storedValue;
+      }
+    }
+
+    const maintenanceDropdown = document.getElementById("maintenanceCode");
+    maintenanceDropdown.addEventListener("change", function () {
+      localStorage.setItem("maBaoDuong", this.value);
+    });
+
+    // KHỞI TẠO THÔNG TIN NGƯỜI DÙNG TỪ LOCALSTORAGE
+    let userAppData = null;
+    const userAppDataString = localStorage.getItem("userAppDataOfDKien");
+    if (userAppDataString) {
+      try {
+        userAppData = JSON.parse(userAppDataString);
+        document.getElementById("displayedUserId").textContent = userAppData.user?.username || "";
+        document.getElementById("displayedUsername").textContent = userAppData.user?.name || "";
+        document.getElementById("displayedPhanXuong").textContent = userAppData.user?.local || "";
+        if (userAppData.app) {
+          populateDropdowns(userAppData.app);
+        }
+      } catch (e) {
+        console.error("Lỗi parse userAppData:", e);
+      }
+    }
+  </script>
+
+  <!-- // SCRIPT QUÉT MÃ QR -->
+  <script type="module">
+    import QrScanner from "https://cdn.jsdelivr.net/npm/qr-scanner/qr-scanner.min.js";
+    
+    let scannerInstance = null;
+    let scanResultReceived = false; // Cờ kiểm tra kết quả quét
+    const videoContainer = document.getElementById("videoContainer");
+    const videoElement = document.getElementById("videoElement");
+    const startButton = document.getElementById("startScan");
+    const stopButton = document.getElementById("stopScan");
+    const assetTable = document.getElementById("assetTable");
+    const assetCodeEl = document.getElementById("assetCodeEl");
+    const serialNumberEl = document.getElementById("serialNumberEl");
+    const machineTypeEl = document.getElementById("machineTypeEl");
+    const brandEl = document.getElementById("brandEl");
+    const modelEl = document.getElementById("modelEl");
+
+    // BẮT ĐẦU QUÉT
+    startButton.addEventListener("click", () => {
+      // Ẩn bảng tài sản và hiển thị video
+      assetTable.style.display = "none";
+      if (scannerInstance) {
+        scannerInstance.stop();
+      }
+      // Xóa dữ liệu hiện có
+      assetCodeEl.textContent = "";
+      serialNumberEl.textContent = "";
+      machineTypeEl.textContent = "";
+      brandEl.textContent = "";
+      modelEl.textContent = "";
+      scanResultReceived = false;
+      videoContainer.style.display = "block";
+      // TẠO INSTANCE QrScanner
+      scannerInstance = new QrScanner(
+        videoElement,
+        result => {
+          // KHI QUÉT THÀNH CÔNG
+          scanResultReceived = true;
+          // HIỂN THỊ BẢNG TÀI SẢN ngay lập tức để hiển thị "Đang tải..."
+          assetTable.style.display = "table";
+          assetCodeEl.textContent = "Đang tải thông tin tài sản...";
+          startButton.disabled = true;  // KHÓA NÚT "BẮT ĐẦU QUÉT"
+          videoContainer.style.display = "none";
+          scannerInstance.stop();
+          localStorage.removeItem("jobFinished");
+          fetchAssetData(result);
+        },
+        error => {
+          // CHỈ LOG LỖI
+          console.warn(`Lỗi quét mã: ${error}`);
+        }
+      );
+      scannerInstance.start();
+    });
+
+    // KẾT THÚC QUÉT
+    stopButton.addEventListener("click", () => {
+      if (scannerInstance) {
+        scannerInstance.stop();
+        videoContainer.style.display = "none";
+      }
+      if (!scanResultReceived) {
+        assetCodeEl.textContent = "Lỗi quét hoặc không tìm thấy mã.";
+      }
+      assetTable.style.display = "table";
+      startButton.disabled = false;
+    });
+
+    // HÀM GỌI API LẤY THÔNG TIN TÀI SẢN (QUÉT)
+    function fetchAssetData(qrResult) {
+      if (
+        !userAppData ||
+        !userAppData.user ||
+        !userAppData.user.username ||
+        !userAppData.user.name ||
+        !userAppData.user.token
+      ) {
+        alert("Thông tin người dùng (ID, Tên hoặc Token) chưa được tải. Vui lòng nhấn 'Get Data' trước.");
+        assetCodeEl.textContent = qrResult;
+        serialNumberEl.textContent = "";
+        machineTypeEl.textContent = "";
+        brandEl.textContent = "";
+        modelEl.textContent = "";
+        startButton.disabled = false;
+        assetTable.style.display = "table";
+        return;
+      }
+      const idUser = userAppData.user.username;
+      const tenNguoiDung = userAppData.user.name;
+      const token = userAppData.user.token;
+      const jsonData = localStorage.getItem("userAppDataOfDKien");
+      const apiBaseUrl = jsonData ? JSON.parse(jsonData).app.truongTrinhLayDanhSachTaiSanTNM.API : "";
+      if (!apiBaseUrl) {
+        alert("Không tìm thấy API Base URL.");
+        startButton.disabled = false;
+        assetTable.style.display = "table";
+        return;
+      }
+      const requestBody =
+        `func=laythongtintsnhamay` +
+        `&idUser=${encodeURIComponent(idUser)}` +
+        `&tenNguoiDung=${encodeURIComponent(tenNguoiDung)}` +
+        `&maTS=${encodeURIComponent(qrResult)}` +
+        `&token=${encodeURIComponent(token)}`;
+      console.log("Request body:", requestBody);
+      assetCodeEl.textContent = "Đang tải thông tin tài sản...";
+      fetch(apiBaseUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: requestBody
+      })
+      .then(response => {
+        if (!response.ok) throw new Error("Network response was not ok");
+        return response.json();
+      })
+      .then(data => {
+        assetTable.style.display = "table";
+        if (data.status && data.status.toLowerCase() === "success") {
+          assetCodeEl.textContent = data.maTaiSan || qrResult;
+          serialNumberEl.textContent = data.soSeri || "";
+          machineTypeEl.textContent = data.loaiMay || "";
+          brandEl.textContent = data.nhanHieu || "";
+          modelEl.textContent = data.model || "";
+        } else {
+          assetCodeEl.textContent = qrResult;
+          serialNumberEl.textContent = "";
+          machineTypeEl.textContent = "";
+          brandEl.textContent = "";
+          modelEl.textContent = "";
+          alert(data.notification || "Không tìm thấy thông tin chi tiết cho mã tài sản này.");
+        }
+        startButton.disabled = false;
+      })
+      .catch(error => {
+        console.error("Error fetching asset data:", error);
+        assetCodeEl.textContent = qrResult;
+        serialNumberEl.textContent = "";
+        machineTypeEl.textContent = "";
+        brandEl.textContent = "";
+        modelEl.textContent = "";
+        alert("Không thể lấy thông tin tài sản. Vui lòng kiểm tra kết nối hoặc API.");
+        startButton.disabled = false;
+        assetTable.style.display = "table";
+      });
+    }
+  </script>
+
+  <!-- // SCRIPT KÝ BẢO DƯỠNG -->
+  <script>
+    document.getElementById("signButton").addEventListener("click", function () {
+      // KIỂM TRA MÃ BẢO DƯỠNG
+      const maBaoDuong = document.getElementById("maintenanceCode").value;
+      if (!maBaoDuong) {
+        alert("Vui lòng chọn mã bảo dưỡng trước khi ký.");
+        return;
+      }
+      // KIỂM TRA DỮ LIỆU BẢNG TÀI SẢN
+      const assetCodeValue = document.getElementById("assetCodeEl").textContent.trim();
+      const serialNumberValue = document.getElementById("serialNumberEl").textContent.trim();
+      if (!assetCodeValue || !serialNumberValue) {
+        alert("Thông tin không hợp lệ. Vui lòng kiểm tra lại Mã Tài Sản và S/N máy.");
+        return;
+      }
+      // BẮT ĐẦU KÝ BẢO DƯỠNG: KHÓA NÚT CHO ĐẾN KHI PHẢN HỒI
+      const signButton = document.getElementById("signButton");
+      signButton.disabled = true;
+      
+      // THU THẬP DỮ LIỆU
+      const loaiMay = document.getElementById("machineTypeEl").textContent;
+      const nhanHieu = document.getElementById("brandEl").textContent;
+      const model = document.getElementById("modelEl").textContent;
+      const maTaiSan = assetCodeValue;
+      const idUser = userAppData.user.username;
+      const token = userAppData.user.token;
+      const tenNguoiDung = userAppData.user.name;
+      const ghiChu = document.getElementById("ghiChuInput").value;
+      const jsonData = localStorage.getItem("userAppDataOfDKien");
+      const apiBaseUrl = jsonData ? JSON.parse(jsonData).app.truongTrinhBaoDuong.API : "";
+      if (!apiBaseUrl) {
+        alert("Không tìm thấy API Base URL cho ký bảo dưỡng.");
+        signButton.disabled = false;
+        return;
+      }
+      // TẠO REQUEST BODY
+      const requestBody =
+          "func=" + encodeURIComponent("kybaoduong") +
+          "&soSeri=" + encodeURIComponent(serialNumberValue) +
+          "&loaiMay=" + encodeURIComponent(loaiMay) +
+          "&nhanHieu=" + encodeURIComponent(nhanHieu) +
+          "&model=" + encodeURIComponent(model) +
+          "&maTaiSan=" + encodeURIComponent(maTaiSan) +
+          "&idUser=" + encodeURIComponent(idUser) +
+          "&token=" + encodeURIComponent(token) +
+          "&tenNguoiDung=" + encodeURIComponent(tenNguoiDung) +
+          "&maBaoDuong=" + encodeURIComponent(maBaoDuong) +
+          "&ghiChu=" + encodeURIComponent(ghiChu);
+      
+      // GỬI YÊU CẦU POST
+      fetch(apiBaseUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: requestBody
+      })
+      .then(response => {
+        if (!response.ok) throw new Error("Network response was not ok");
+        return response.json();
+      })
+      .then(data => {
+        if (data.status && data.status.toLowerCase() === "success") {
+          // HIỂN THỊ THÔNG BÁO THÀNH CÔNG
+          const notifyDiv = document.getElementById("notificationDiv");
+          notifyDiv.textContent = data.notification || "Ký bảo dưỡng thành công.";
+          notifyDiv.style.visibility = "visible";
+          setTimeout(() => { 
+            notifyDiv.style.visibility = "hidden"; 
+            notifyDiv.textContent = "";
+          }, 2000);
+          // XÓA NỘI DUNG BẢNG TÀI SẢN (TRỪ MÃ BẢO DƯỠNG)
+          assetCodeEl.textContent = "";
+          serialNumberEl.textContent = "";
+          machineTypeEl.textContent = "";
+          brandEl.textContent = "";
+          modelEl.textContent = "";
+        } else {
+          alert(data.notification || "Ký bảo dưỡng thất bại.");
+        }
+        signButton.disabled = false;
+      })
+      .catch(error => {
+        console.error("Error during ký bảo dưỡng:", error);
+        alert("Lỗi khi ký bảo dưỡng. Vui lòng kiểm tra kết nối hoặc API.");
+        signButton.disabled = false;
+      });
+    });
+  </script>
+</body>
+</html>
