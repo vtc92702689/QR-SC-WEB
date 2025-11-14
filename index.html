@@ -407,9 +407,12 @@ function fetchAssetData(qrResult) {
 
             // --- KHỞI TẠO CÔNG VIỆC ---
 initJobButton.addEventListener("click", () => {
+
+    initJobButton.disabled = true;
     // Kiểm tra dữ liệu người dùng
     if (!userAppData || !userAppData.user || !userAppData.user.username || !userAppData.user.name || !userAppData.user.local || !userAppData.user.token) {
         alert("Thông tin người dùng (ID, Tên, Phân xưởng hoặc Token) chưa đầy đủ. Vui lòng nhấn 'Get Data' trước.");
+        initJobButton.disabled = false;
         return;
     }
 
@@ -429,6 +432,7 @@ initJobButton.addEventListener("click", () => {
 
     if (!mts) {
         alert("Mã tài sản chưa được quét hoặc thông tin chưa được tải.");
+        initJobButton.disabled = false;
         return;
     }
 
@@ -471,6 +475,7 @@ initJobButton.addEventListener("click", () => {
     .then(response => {
         if (!response.ok) throw new Error("Network response was not ok");
         return response.json();
+        initJobButton.disabled = false;
     })
     .then(jobData => {
         if (jobData.status === "success") {
@@ -528,6 +533,7 @@ initJobButton.addEventListener("click", () => {
                 }
                 endJobButton.style.display = "none";
             }
+            initJobButton.disabled = false;
         }
     })
     .catch(error => {
@@ -537,14 +543,18 @@ initJobButton.addEventListener("click", () => {
             initJobButton.style.display = "block";
         }
         endJobButton.style.display = "none";
+        initJobButton.disabled = false;
     });
 });
 
 // --- KẾT THÚC CÔNG VIỆC ---
 endJobButton.addEventListener("click", () => {
+
+    endJobButton.disabled = true;
     // Kiểm tra thông tin người dùng
     if (!userAppData || !userAppData.user || !userAppData.user.username || !userAppData.user.name || !userAppData.user.local || !userAppData.user.token) {
         alert("Thông tin người dùng (ID, Tên, Phân xưởng hoặc Token) chưa đầy đủ. Vui lòng nhấn 'Get Data' trước.");
+        endJobButton.disabled = false;
         return;
     }
 
@@ -570,6 +580,7 @@ endJobButton.addEventListener("click", () => {
     if (!maYC || !rowNum || !mts) {
         alert("Không có thông tin công việc đang hoạt động.");
         clearJobAndAssetData();
+        endJobButton.disabled = false;
         return;
     }
 
@@ -579,6 +590,7 @@ endJobButton.addEventListener("click", () => {
 
     if (!apiBaseUrl) {
         alert("Không tìm thấy API Base URL.");
+        endJobButton.disabled = false;
         return;
     }
 
@@ -608,6 +620,7 @@ endJobButton.addEventListener("click", () => {
     })
     .then(response => {
         if (!response.ok) throw new Error("Network response was not ok");
+        endJobButton.disabled = false;
         return response.json();
     })
     .then(endJobData => {
@@ -620,11 +633,13 @@ endJobButton.addEventListener("click", () => {
             alert(endJobData.notification);
             endJobButton.style.display = "block";
         }
+        endJobButton.disabled = false;
     })
     .catch(error => {
         console.error("Error ending job:", error);
         alert("Có lỗi khi kết thúc công việc. Vui lòng kiểm tra lại.");
         endJobButton.style.display = "block";
+        endJobButton.disabled = false;
     });
 });
  
