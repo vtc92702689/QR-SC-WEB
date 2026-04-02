@@ -376,6 +376,7 @@ function fetchAssetData(qrResult) {
         machineTypeEl.textContent = data.loaiMay || "";
         brandEl.textContent = data.nhanHieu || "";
         modelEl.textContent = data.model || "";
+        initJobButton.disabled = false;
         initJobButton.style.display = "block";
       } else {
         // Nếu không thành công, giữ lại mã QR đã quét và hiển thị thông báo
