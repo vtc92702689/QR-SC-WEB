@@ -406,13 +406,20 @@ function fetchAssetData(qrResult) {
     });
 }
 
-            // --- KHỞI TẠO CÔNG VIỆC ---
+// --- KHỞI TẠO CÔNG VIỆC ---
 initJobButton.addEventListener("click", () => {
-
+    // 1. Kích hoạt trạng thái Loading
+    const originalText = initJobButton.textContent;
+    initJobButton.textContent = "Đang xử lý...";
+    initJobButton.classList.add("loading");
     initJobButton.disabled = true;
-    // Kiểm tra dữ liệu người dùng
+
+    // 2. Kiểm tra dữ liệu người dùng
     if (!userAppData || !userAppData.user || !userAppData.user.username || !userAppData.user.name || !userAppData.user.local || !userAppData.user.token) {
         alert("Thông tin người dùng (ID, Tên, Phân xưởng hoặc Token) chưa đầy đủ. Vui lòng nhấn 'Get Data' trước.");
+        // Trả lại trạng thái nút
+        initJobButton.textContent = originalText;
+        initJobButton.classList.remove("loading");
         initJobButton.disabled = false;
         return;
     }
@@ -422,9 +429,6 @@ initJobButton.addEventListener("click", () => {
     let phanXuong = userAppData.user.local;
     let token = userAppData.user.token;
 
-    // Xác định Phân xưởng
-    
-
     let soSeri = serialNumberEl.textContent.trim();
     let loaiMay = machineTypeEl.textContent.trim();
     let nhanHieu = brandEl.textContent.trim();
@@ -433,22 +437,30 @@ initJobButton.addEventListener("click", () => {
 
     if (!mts) {
         alert("Mã tài sản chưa được quét hoặc thông tin chưa được tải.");
+        initJobButton.textContent = originalText;
+        initJobButton.classList.remove("loading");
         initJobButton.disabled = false;
         return;
     }
 
-    // Lấy giá trị từ dropdown sự cố
+    // Lấy giá trị từ dropdown
     let khuVuc = areaSelect.value;
     let viTriCuThe = locationSelect.value;
     let suCo = issueSelect.value;
 
-    // URL API
+    // Lấy URL API
     const jsonData = localStorage.getItem("userAppDataOfDKien");
     const apiBaseUrl = jsonData ? JSON.parse(jsonData).app.truongTrinhBaoCaoSuaChua.API : "";
 
-    let jobUrl = `${apiBaseUrl}`;
+    if (!apiBaseUrl) {
+        alert("Không tìm thấy API Base URL.");
+        initJobButton.textContent = originalText;
+        initJobButton.classList.remove("loading");
+        initJobButton.disabled = false;
+        return;
+    }
 
-    // Chuyển đổi dữ liệu thành chuỗi URL-encoded
+    // Tạo Body cho POST request
     let requestBody = `func=taocongviec` +
         `&soSeri=${encodeURIComponent(soSeri)}` +
         `&loaiMay=${encodeURIComponent(loaiMay)}` +
@@ -463,10 +475,8 @@ initJobButton.addEventListener("click", () => {
         `&viTriCuThe=${encodeURIComponent(viTriCuThe)}` +
         `&suCo=${encodeURIComponent(suCo)}`;
 
-    console.log("Sending job request via POST:", requestBody);
-
-    // Thực hiện fetch với phương thức POST
-    fetch(jobUrl, {
+    // 3. Thực hiện gọi API
+    fetch(apiBaseUrl, {
         method: "POST",
         headers: {
             "Content-Type": "application/x-www-form-urlencoded"
@@ -476,9 +486,12 @@ initJobButton.addEventListener("click", () => {
     .then(response => {
         if (!response.ok) throw new Error("Network response was not ok");
         return response.json();
-        initJobButton.disabled = false;
     })
     .then(jobData => {
+        // Luôn trả lại giao diện nút trước khi xử lý logic tiếp theo
+        initJobButton.textContent = originalText;
+        initJobButton.classList.remove("loading");
+
         if (jobData.status === "success") {
             let currentTime = new Date().toLocaleString();
             startTimeEl.textContent = currentTime;
@@ -491,12 +504,12 @@ initJobButton.addEventListener("click", () => {
             localStorage.setItem("rowNum", jobData.data.rowNum);
             localStorage.setItem("maYC", jobData.data.maYC);
 
+            // Lưu dữ liệu vào LocalStorage
             localStorage.setItem("assetCode", mts);
             localStorage.setItem("serialNumber", soSeri);
             localStorage.setItem("machineType", loaiMay);
             localStorage.setItem("brand", nhanHieu);
             localStorage.setItem("model", modelVal);
-
             localStorage.setItem("area", khuVuc);
             localStorage.setItem("location", viTriCuThe);
             localStorage.setItem("issue", suCo);
@@ -510,51 +523,49 @@ initJobButton.addEventListener("click", () => {
             initJobButton.style.display = "none";
             endJobButton.style.display = "block";
         } else {
-            //alert(jobData.notification);
+            // Xử lý trường hợp đã có công việc đang chạy (Restore/Cancel)
             if (jobData.command && jobData.data) {
                 if (confirm(jobData.notification + "\n\nNhấn OK để Khôi Phục, Huỷ để xóa dữ liệu hiện tại.")) {
                     restoreData(jobData.data);
-                    alert("Dữ liệu đã được khôi phục từ công việc hiện có.");
+                    alert("Dữ liệu đã được khôi phục.");
                     localStorage.setItem("jobActive", "true");
-                    localStorage.removeItem("jobFinished");
                     initJobButton.style.display = "none";
                     endJobButton.style.display = "block";
                 } else {
                     clearJobAndAssetData();
                     cancelJob(jobData.data);
-                    //alert("Dữ liệu công việc và tài sản đã được xóa.");
                     initJobButton.style.display = "none";
                     endJobButton.style.display = "none";
                 }
             } else {
-                if (localStorage.getItem("jobActive") !== "true") {
-                    initJobButton.style.display = "block";
-                } else {
-                    initJobButton.style.display = "none";
-                }
-                endJobButton.style.display = "none";
+                initJobButton.disabled = false;
             }
-            initJobButton.disabled = false;
         }
     })
     .catch(error => {
         console.error("Error creating job:", error);
-        alert("Có lỗi khi tạo công việc. Vui lòng kiểm tra lại.");
-        if (!localStorage.getItem("jobActive")) {
-            initJobButton.style.display = "block";
-        }
-        endJobButton.style.display = "none";
+        alert("Có lỗi khi kết nối máy chủ.");
+        // Reset trạng thái nút để người dùng thử lại
+        initJobButton.textContent = originalText;
+        initJobButton.classList.remove("loading");
         initJobButton.disabled = false;
     });
 });
 
 // --- KẾT THÚC CÔNG VIỆC ---
 endJobButton.addEventListener("click", () => {
-
+    // 1. Kích hoạt trạng thái Loading
+    const originalText = endJobButton.textContent;
+    endJobButton.textContent = "Đang gửi dữ liệu...";
+    endJobButton.classList.add("loading");
     endJobButton.disabled = true;
-    // Kiểm tra thông tin người dùng
+
+    // 2. Kiểm tra thông tin người dùng
     if (!userAppData || !userAppData.user || !userAppData.user.username || !userAppData.user.name || !userAppData.user.local || !userAppData.user.token) {
         alert("Thông tin người dùng (ID, Tên, Phân xưởng hoặc Token) chưa đầy đủ. Vui lòng nhấn 'Get Data' trước.");
+        // Reset trạng thái nút
+        endJobButton.textContent = originalText;
+        endJobButton.classList.remove("loading");
         endJobButton.disabled = false;
         return;
     }
@@ -578,24 +589,30 @@ endJobButton.addEventListener("click", () => {
     let thietBiThayThe = replacementPartInput.value.trim();
     let ghiChu = noteInput.value.trim();
 
+    // Kiểm tra dữ liệu công việc hiện tại
     if (!maYC || !rowNum || !mts) {
         alert("Không có thông tin công việc đang hoạt động.");
         clearJobAndAssetData();
+        // Reset trạng thái nút
+        endJobButton.textContent = originalText;
+        endJobButton.classList.remove("loading");
         endJobButton.disabled = false;
         return;
     }
 
-    // Lấy URL API từ dữ liệu ứng dụng nếu có
+    // Lấy URL API
     const jsonData = localStorage.getItem("userAppDataOfDKien");
     const apiBaseUrl = jsonData ? JSON.parse(jsonData).app.truongTrinhBaoCaoSuaChua.API : "";
 
     if (!apiBaseUrl) {
         alert("Không tìm thấy API Base URL.");
+        endJobButton.textContent = originalText;
+        endJobButton.classList.remove("loading");
         endJobButton.disabled = false;
         return;
     }
 
-    // Chuyển đổi dữ liệu thành chuỗi URL-encoded
+    // Chuyển đổi dữ liệu thành chuỗi URL-encoded cho POST body
     let requestBody = `func=ketthuccongviec` +
         `&mts=${encodeURIComponent(mts)}` +
         `&idUser=${encodeURIComponent(idUser)}` +
@@ -612,6 +629,7 @@ endJobButton.addEventListener("click", () => {
 
     console.log("Request body:", requestBody);
 
+    // 3. Thực hiện gọi API kết thúc công việc
     fetch(apiBaseUrl, {
         method: "POST",
         headers: {
@@ -621,24 +639,31 @@ endJobButton.addEventListener("click", () => {
     })
     .then(response => {
         if (!response.ok) throw new Error("Network response was not ok");
-        endJobButton.disabled = false;
         return response.json();
     })
     .then(endJobData => {
+        // Luôn loại bỏ class loading khi nhận phản hồi
+        endJobButton.classList.remove("loading");
+        endJobButton.textContent = originalText;
+
         if (endJobData.status === "success") {
             clearJobAndAssetData();
             localStorage.setItem("jobFinished", "true");
             endJobButton.style.display = "none";
             alert(endJobData.notification);
-        } else if (endJobData.status === "fail") {
-            alert(endJobData.notification);
+        } else {
+            alert(endJobData.notification || "Không thể kết thúc công việc.");
             endJobButton.style.display = "block";
+            endJobButton.disabled = false;
         }
-        endJobButton.disabled = false;
     })
     .catch(error => {
         console.error("Error ending job:", error);
-        alert("Có lỗi khi kết thúc công việc. Vui lòng kiểm tra lại.");
+        alert("Có lỗi khi kết thúc công việc. Vui lòng kiểm tra lại kết nối.");
+        
+        // Trình trạng lỗi: Reset nút để người dùng có thể bấm lại
+        endJobButton.textContent = originalText;
+        endJobButton.classList.remove("loading");
         endJobButton.style.display = "block";
         endJobButton.disabled = false;
     });
@@ -1039,6 +1064,12 @@ function cancelJob(data) {
         }
         #end-job-button:hover {
             background-color: #c82333;
+        }
+        /* Hiệu ứng loading cho nút */
+        .loading {
+            opacity: 0.7;
+            cursor: not-allowed !important;
+            pointer-events: none;
         }
     </style>
 </head>
