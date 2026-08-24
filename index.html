@@ -173,7 +173,7 @@
 
                 // Lấy API base URL từ localStorage (từ biến userAppDataOfDKien)
                 const jsonData = localStorage.getItem("userAppDataOfDKien");
-                const apiBaseUrl = jsonData ? JSON.parse(jsonData).app.truongTrinhCapNhatThanhPhanApp.API : "";
+                const apiBaseUrl = jsonData ? JSON.parse(jsonData).app.truongTrinhCapNhatDuongDan.API : "";
 
                 if (!apiBaseUrl) {
                     alert("Không tìm thấy API Base URL.");
